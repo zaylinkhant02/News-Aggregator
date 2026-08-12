@@ -8,30 +8,42 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased">
-  <div id="app" class="max-w-6xl mx-auto px-4 py-6">
-    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-      <h1 class="text-3xl font-bold tracking-tight text-blue-700 flex items-center gap-2">
-        <i data-lucide="newspaper" class="w-8 h-8 text-blue-600"></i>
-        News Aggregator
-      </h1>
+<body class="bg-gradient-to-br from-slate-50 via-slate-100/60 to-slate-50 text-slate-800 font-sans antialiased min-h-screen">
+  <div id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <header class="bg-white/80 backdrop-blur-md border border-slate-200/80 rounded-2xl p-4 sm:p-6 shadow-sm mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-blue-600/10 border border-blue-500/20 rounded-xl text-blue-600 flex items-center justify-center shadow-inner">
+          <i data-lucide="newspaper" class="w-7 h-7"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight text-slate-900">News Aggregator</h1>
+          <p class="text-xs font-medium text-slate-500">Live headlines & top stories</p>
+        </div>
+      </div>
+
       <div class="flex flex-wrap items-center gap-3">
-        <label for="category-select" class="text-sm font-medium text-slate-600">Category</label>
-        <select id="category-select" class="bg-white border border-slate-300 rounded-lg px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition"></select>
-        <button id="refresh-btn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2 rounded-lg shadow-sm transition flex items-center gap-2">
+        <div class="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200">
+          <label for="category-select" class="text-xs font-semibold uppercase tracking-wider text-slate-500 pl-2">Category</label>
+          <select id="category-select" class="bg-white border border-slate-200 text-slate-700 font-medium rounded-lg px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"></select>
+        </div>
+
+        <button id="refresh-btn" class="bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-sm font-medium px-4 py-2 rounded-xl shadow-sm shadow-blue-500/20 hover:shadow-md hover:shadow-blue-500/30 transition flex items-center gap-2">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-          Refresh
+          <span>Refresh</span>
         </button>
       </div>
     </header>
 
-    <div id="loading-indicator" class="flex justify-center items-center py-20">
-      <div class="loader"></div>
-    </div>
+    <main>
+      <div id="loading-indicator" class="flex flex-col justify-center items-center py-24 gap-3">
+        <div class="loader"></div>
+        <p class="text-sm font-medium text-slate-400 animate-pulse">Fetching latest headlines...</p>
+      </div>
 
-    <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 
-    <div id="error-message" class="hidden text-center py-12 text-red-600 font-medium text-lg"></div>
+      <div id="error-message" class="hidden text-center py-16 px-6 bg-red-50 border border-red-200 rounded-2xl text-red-600 font-medium text-base shadow-sm max-w-lg mx-auto"></div>
+    </main>
   </div>
 
   <script src="script.js"></script>
