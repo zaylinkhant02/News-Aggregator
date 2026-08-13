@@ -35,14 +35,16 @@
     </header>
 
     <main>
-      <div id="loading-indicator" class="flex flex-col justify-center items-center py-24 gap-3">
-        <div class="loader"></div>
-        <p class="text-sm font-medium text-slate-400 animate-pulse">Fetching latest headlines...</p>
-      </div>
-
       <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
 
-      <div id="error-message" class="hidden text-center py-16 px-6 bg-red-50 border border-red-200 rounded-2xl text-red-600 font-medium text-base shadow-sm max-w-lg mx-auto"></div>
+      <div id="load-more-container" class="mt-10 text-center hidden">
+        <button id="load-more-btn" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-semibold px-6 py-3 rounded-xl shadow-sm hover:shadow transition inline-flex items-center gap-2">
+          <span>Load More Articles</span>
+          <i data-lucide="chevron-down" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div id="error-message" class="hidden text-center py-16 px-6 bg-red-50 border border-red-200 rounded-2xl text-red-600 font-medium text-base shadow-sm max-w-lg mx-auto mt-8"></div>
     </main>
   </div>
 
