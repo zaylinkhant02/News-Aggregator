@@ -3,10 +3,15 @@
 
   const categorySelect = document.getElementById('category-select');
   const refreshBtn = document.getElementById('refresh-btn');
+  const searchForm = document.getElementById('search-form');
+  const searchInput = document.getElementById('search-input');
+  const clearSearchBtn = document.getElementById('clear-search');
+  const featuredStory = document.getElementById('featured-story');
   const newsGrid = document.getElementById('news-grid');
-  const loadMoreContainer = document.getElementById('load-more-container');
-  const loadMoreBtn = document.getElementById('load-more-btn');
+  const scrollSentinel = document.getElementById('scroll-sentinel');
+  const sentinelLoader = document.getElementById('sentinel-loader');
   const errorMessage = document.getElementById('error-message');
+  const lastUpdatedEl = document.getElementById('last-updated');
 
   const categories = [
     { value: 'top', label: 'Top Stories' },
@@ -22,22 +27,39 @@
   ];
 
   let currentCategory = 'top';
+  let currentSearchQuery = '';
   let nextPageToken = null;
   let isFetching = false;
+  let observer = null;
   const seenTitles = new Set();
 
   function populateCategories() {
-    categorySelect.innerHTML = '';
-    categories.forEach(cat => {
-      const option = document.createElement('option');
-      option.value = cat.value;
-      option.textContent = cat.label;
-      if (cat.value === currentCategory) option.selected = true;
-      categorySelect.appendChild(option);
-    });
+    categorySelect.innerHTML = categories.map(cat => 
+      `<option value="${cat.value}" ${cat.value === currentCategory ? 'selected' : ''}>${cat.label}</option>`
+    ).join('');
+  }
+
+  function updateLastUpdatedTimestamp() {
+    if (!lastUpdatedEl) return;
+    const now = new Date();
+    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    lastUpdatedEl.textContent = `Refreshed at ${formattedTime}`;
   }
 
   function renderSkeletons() {
+    featuredStory.innerHTML = `
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 animate-pulse flex flex-col md:flex-row gap-6">
+        <div class="w-full md:w-1/2 h-64 bg-slate-200 rounded-xl"></div>
+        <div class="w-full md:w-1/2 flex flex-col justify-center space-y-4">
+          <div class="h-4 bg-slate-200 rounded w-1/4"></div>
+          <div class="h-7 bg-slate-200 rounded w-5/6"></div>
+          <div class="h-4 bg-slate-200 rounded w-full"></div>
+          <div class="h-4 bg-slate-200 rounded w-4/5"></div>
+          <div class="h-4 bg-slate-200 rounded w-1/3 pt-4"></div>
+        </div>
+      </div>
+    `;
+
     newsGrid.innerHTML = Array(6).fill(0).map(() => `
       <div class="news-card animate-pulse">
         <div class="w-full h-[180px] bg-slate-200"></div>
@@ -45,7 +67,6 @@
           <div class="h-4 bg-slate-200 rounded w-3/4 mb-3"></div>
           <div class="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
           <div class="h-3 bg-slate-200 rounded w-full mb-2"></div>
-          <div class="h-3 bg-slate-200 rounded w-5/6 mb-2"></div>
           <div class="h-3 bg-slate-200 rounded w-2/3 mb-6"></div>
           <div class="pt-3 border-t border-slate-100 flex justify-between items-center mt-auto">
             <div class="h-3 bg-slate-200 rounded w-1/3"></div>
@@ -59,7 +80,10 @@
   function showError(message) {
     errorMessage.classList.remove('hidden');
     errorMessage.textContent = message;
-    if (!nextPageToken) newsGrid.innerHTML = '';
+    if (!nextPageToken) {
+      newsGrid.innerHTML = '';
+      featuredStory.innerHTML = '';
+    }
   }
 
   function formatDate(dateString) {
@@ -79,56 +103,107 @@
     });
   }
 
-  function renderArticles(articles, append = false) {
-    if (!append && articles.length === 0) {
-      newsGrid.innerHTML = `
-        <div class="col-span-full text-center py-16 text-slate-500">
-          <p class="text-lg font-medium">No articles found for this category.</p>
-          <p class="text-sm text-slate-400 mt-1">Try another category or refresh.</p>
+  function createCardHTML(article) {
+    const imageUrl = article.image_url || article.image || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=600&h=400&fit=crop&crop=center&q=80';
+    const title = article.title || 'Untitled';
+    const description = article.description || article.content || 'No description available.';
+    const source = article.source_name || article.source_id || 'Unknown source';
+    const pubDate = article.pubDate || article.publishedAt || '';
+    const link = article.link || article.url || '#';
+
+    return `
+      <img src="${imageUrl}" alt="${title}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=600&h=400&fit=crop&crop=center&q=80'" />
+      <div class="card-body">
+        <h3 class="card-title">${title}</h3>
+        <p class="card-description">${description}</p>
+        <div class="card-meta">
+          <span>${source} ${pubDate ? '· ' + formatDate(pubDate) : ''}</span>
+          <a href="${link}" target="_blank" rel="noopener noreferrer">
+            Read More
+            <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+          </a>
         </div>
-      `;
+      </div>
+    `;
+  }
+
+  function renderFeaturedStory(article) {
+    if (!article) {
+      featuredStory.innerHTML = '';
       return;
+    }
+
+    const imageUrl = article.image_url || article.image || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1000&h=600&fit=crop&crop=center&q=80';
+    const title = article.title || 'Untitled';
+    const description = article.description || article.content || 'No description available.';
+    const source = article.source_name || article.source_id || 'Unknown source';
+    const pubDate = article.pubDate || article.publishedAt || '';
+    const link = article.link || article.url || '#';
+
+    featuredStory.innerHTML = `
+      <div class="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition flex flex-col md:flex-row">
+        <div class="w-full md:w-1/2 h-64 md:h-auto relative bg-slate-100 flex-shrink-0">
+          <img src="${imageUrl}" alt="${title}" class="w-full h-full object-cover object-center absolute inset-0" onerror="this.src='https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1000&h=600&fit=crop&crop=center&q=80'" />
+          <span class="absolute top-4 left-4 bg-blue-600 text-white text-xs font-bold uppercase px-3 py-1 rounded-full shadow-md z-10">Featured</span>
+        </div>
+        <div class="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-between">
+          <div>
+            <div class="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">${source}</div>
+            <h2 class="text-2xl font-bold text-slate-900 leading-tight mb-3 hover:text-blue-600 transition">${title}</h2>
+            <p class="text-slate-600 text-sm line-clamp-3 leading-relaxed mb-6">${description}</p>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-100 pt-4 text-xs font-medium text-slate-500">
+            <span>${pubDate ? formatDate(pubDate) : ''}</span>
+            <a href="${link}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-blue-600 font-semibold hover:text-blue-700">
+              Read Full Story
+              <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderArticles(articles, append = false) {
+    let itemsToRender = [...articles];
+
+    if (!append) {
+      if (itemsToRender.length > 0) {
+        const heroArticle = itemsToRender.shift();
+        renderFeaturedStory(heroArticle);
+      } else {
+        featuredStory.innerHTML = '';
+      }
+
+      if (itemsToRender.length === 0) {
+        newsGrid.innerHTML = `
+          <div class="col-span-full text-center py-16 text-slate-500">
+            <p class="text-lg font-medium">No articles found.</p>
+            <p class="text-sm text-slate-400 mt-1">Try another search or category.</p>
+          </div>
+        `;
+        return;
+      }
     }
 
     const fragment = document.createDocumentFragment();
 
-    articles.forEach(article => {
+    itemsToRender.forEach(article => {
       const card = document.createElement('div');
       card.className = 'news-card';
-
-      const imageUrl = article.image_url || article.image || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=600&h=400&fit=crop&crop=center&q=80';
-      const title = article.title || 'Untitled';
-      const description = article.description || article.content || 'No description available.';
-      const source = article.source_name || article.source_id || 'Unknown source';
-      const pubDate = article.pubDate || article.publishedAt || '';
-      const link = article.link || article.url || '#';
-
-      card.innerHTML = `
-        <img src="${imageUrl}" alt="${title}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=600&h=400&fit=crop&crop=center&q=80'" />
-        <div class="card-body">
-          <h3 class="card-title">${title}</h3>
-          <p class="card-description">${description}</p>
-          <div class="card-meta">
-            <span>${source} ${pubDate ? '· ' + formatDate(pubDate) : ''}</span>
-            <a href="${link}" target="_blank" rel="noopener noreferrer">
-              Read More
-              <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
-            </a>
-          </div>
-        </div>
-      `;
+      card.innerHTML = createCardHTML(article);
       fragment.appendChild(card);
     });
 
     if (!append) {
       newsGrid.innerHTML = '';
     }
-    
+
     newsGrid.appendChild(fragment);
     lucide.createIcons();
   }
 
-  async function fetchNews(category, page = null) {
+  async function fetchNews(category, page = null, query = '') {
     if (isFetching) return;
     isFetching = true;
     errorMessage.classList.add('hidden');
@@ -138,14 +213,13 @@
     if (!isLoadMore) {
       seenTitles.clear();
       renderSkeletons();
-      loadMoreContainer.classList.add('hidden');
     } else {
-      loadMoreBtn.disabled = true;
-      loadMoreBtn.innerHTML = `<span>Loading...</span> <div class="loader !w-4 !h-4 !border-2"></div>`;
+      sentinelLoader.classList.remove('hidden');
     }
 
     try {
       let url = `${PROXY_URL}?category=${encodeURIComponent(category)}`;
+      if (query) url += `&q=${encodeURIComponent(query)}`;
       if (page) url += `&page=${encodeURIComponent(page)}`;
 
       const response = await fetch(url);
@@ -165,50 +239,77 @@
       const articles = filterDuplicates(data.results || []);
 
       renderArticles(articles, isLoadMore);
-
-      if (nextPageToken) {
-        loadMoreContainer.classList.remove('hidden');
-      } else {
-        loadMoreContainer.classList.add('hidden');
+      if (!isLoadMore) {
+        updateLastUpdatedTimestamp();
       }
     } catch (error) {
       console.error('News fetch error:', error);
       showError('⚠️ ' + (error.message || 'Failed to load news. Please try again later.'));
     } finally {
       isFetching = false;
-      loadMoreBtn.disabled = false;
-      loadMoreBtn.innerHTML = `<span>Load More Articles</span> <i data-lucide="chevron-down" class="w-4 h-4"></i>`;
+      sentinelLoader.classList.add('hidden');
       lucide.createIcons();
     }
   }
 
+  function setupIntersectionObserver() {
+    if (observer) observer.disconnect();
+
+    observer = new IntersectionObserver((entries) => {
+      const target = entries[0];
+      if (target.isIntersecting && nextPageToken && !isFetching) {
+        fetchNews(currentCategory, nextPageToken, currentSearchQuery);
+      }
+    }, { rootMargin: '200px' });
+
+    observer.observe(scrollSentinel);
+  }
+
   function handleCategoryChange() {
-    const selected = categorySelect.value;
-    if (selected === currentCategory) return;
-    currentCategory = selected;
+    currentCategory = categorySelect.value;
+    currentSearchQuery = '';
+    searchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
     nextPageToken = null;
-    fetchNews(currentCategory);
+    fetchNews(currentCategory, null, currentSearchQuery);
   }
 
-  function handleRefresh() {
-    nextPageToken = null;
-    fetchNews(currentCategory);
-  }
+  function handleSearchSubmit(e) {
+    e.preventDefault();
+    const query = searchInput.value.trim();
+    if (!query && !currentSearchQuery) return;
 
-  function handleLoadMore() {
-    if (nextPageToken) {
-      fetchNews(currentCategory, nextPageToken);
+    currentSearchQuery = query;
+    nextPageToken = null;
+
+    if (currentSearchQuery) {
+      clearSearchBtn.classList.remove('hidden');
+    } else {
+      clearSearchBtn.classList.add('hidden');
     }
+
+    fetchNews(currentCategory, null, currentSearchQuery);
+  }
+
+  function handleClearSearch() {
+    searchInput.value = '';
+    currentSearchQuery = '';
+    clearSearchBtn.classList.add('hidden');
+    nextPageToken = null;
+    fetchNews(currentCategory, null, currentSearchQuery);
   }
 
   function init() {
     populateCategories();
     lucide.createIcons();
-    fetchNews(currentCategory);
+    setupIntersectionObserver();
+
+    fetchNews(currentCategory, null, currentSearchQuery);
 
     categorySelect.addEventListener('change', handleCategoryChange);
-    refreshBtn.addEventListener('click', handleRefresh);
-    loadMoreBtn.addEventListener('click', handleLoadMore);
+    refreshBtn.addEventListener('click', () => fetchNews(currentCategory, null, currentSearchQuery));
+    searchForm.addEventListener('submit', handleSearchSubmit);
+    clearSearchBtn.addEventListener('click', handleClearSearch);
   }
 
   document.addEventListener('DOMContentLoaded', init);
