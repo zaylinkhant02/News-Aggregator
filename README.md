@@ -26,6 +26,7 @@ A news aggregator built with vanilla JavaScript on the frontend and Cloudflare W
 
 ## Project Structure
 
+```
 news-aggregator/
 ├── index.html
 ├── script.js
@@ -35,3 +36,4 @@ news-aggregator/
 │   └── media/
 │       └── news-placeholder.jpg  # Fallback image
 └── README.md
+```
