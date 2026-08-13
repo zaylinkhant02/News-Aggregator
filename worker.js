@@ -1,5 +1,5 @@
 const ALLOWED_ORIGINS = [
-  
+  https://zaylinkhant02.github.io/News-Aggregator/
 ];
 
 export default {
