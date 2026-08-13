@@ -4,7 +4,8 @@
   const categorySelect = document.getElementById('category-select');
   const refreshBtn = document.getElementById('refresh-btn');
   const newsGrid = document.getElementById('news-grid');
-  const loadingIndicator = document.getElementById('loading-indicator');
+  const loadMoreContainer = document.getElementById('load-more-container');
+  const loadMoreBtn = document.getElementById('load-more-btn');
   const errorMessage = document.getElementById('error-message');
 
   const categories = [
@@ -21,7 +22,9 @@
   ];
 
   let currentCategory = 'top';
+  let nextPageToken = null;
   let isFetching = false;
+  const seenTitles = new Set();
 
   function populateCategories() {
     categorySelect.innerHTML = '';
@@ -34,22 +37,29 @@
     });
   }
 
-  function setLoading(state) {
-    if (state) {
-      loadingIndicator.classList.remove('hidden');
-      newsGrid.innerHTML = '';
-      errorMessage.classList.add('hidden');
-      newsGrid.style.opacity = '0.3';
-    } else {
-      loadingIndicator.classList.add('hidden');
-      newsGrid.style.opacity = '1';
-    }
+  function renderSkeletons() {
+    newsGrid.innerHTML = Array(6).fill(0).map(() => `
+      <div class="news-card animate-pulse">
+        <div class="w-full h-[180px] bg-slate-200"></div>
+        <div class="card-body p-5">
+          <div class="h-4 bg-slate-200 rounded w-3/4 mb-3"></div>
+          <div class="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
+          <div class="h-3 bg-slate-200 rounded w-full mb-2"></div>
+          <div class="h-3 bg-slate-200 rounded w-5/6 mb-2"></div>
+          <div class="h-3 bg-slate-200 rounded w-2/3 mb-6"></div>
+          <div class="pt-3 border-t border-slate-100 flex justify-between items-center mt-auto">
+            <div class="h-3 bg-slate-200 rounded w-1/3"></div>
+            <div class="h-3 bg-slate-200 rounded w-1/4"></div>
+          </div>
+        </div>
+      </div>
+    `).join('');
   }
 
   function showError(message) {
     errorMessage.classList.remove('hidden');
     errorMessage.textContent = message;
-    newsGrid.innerHTML = '';
+    if (!nextPageToken) newsGrid.innerHTML = '';
   }
 
   function formatDate(dateString) {
@@ -58,20 +68,19 @@
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
-  function removeDuplicates(articles) {
-    const seen = new Set();
+  function filterDuplicates(articles) {
     return articles.filter(article => {
       const titleKey = (article.title || '').trim().toLowerCase();
-      if (!titleKey || seen.has(titleKey)) {
+      if (!titleKey || seenTitles.has(titleKey)) {
         return false;
       }
-      seen.add(titleKey);
+      seenTitles.add(titleKey);
       return true;
     });
   }
 
-  function renderArticles(articles) {
-    if (!articles || articles.length === 0) {
+  function renderArticles(articles, append = false) {
+    if (!append && articles.length === 0) {
       newsGrid.innerHTML = `
         <div class="col-span-full text-center py-16 text-slate-500">
           <p class="text-lg font-medium">No articles found for this category.</p>
@@ -111,23 +120,38 @@
       fragment.appendChild(card);
     });
 
-    newsGrid.innerHTML = '';
+    if (!append) {
+      newsGrid.innerHTML = '';
+    }
+    
     newsGrid.appendChild(fragment);
-
     lucide.createIcons();
   }
 
-  async function fetchNews(category) {
+  async function fetchNews(category, page = null) {
     if (isFetching) return;
     isFetching = true;
-    setLoading(true);
     errorMessage.classList.add('hidden');
 
+    const isLoadMore = Boolean(page);
+
+    if (!isLoadMore) {
+      seenTitles.clear();
+      renderSkeletons();
+      loadMoreContainer.classList.add('hidden');
+    } else {
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.innerHTML = `<span>Loading...</span> <div class="loader !w-4 !h-4 !border-2"></div>`;
+    }
+
     try {
-      const url = `${PROXY_URL}?category=${encodeURIComponent(category)}`;
+      let url = `${PROXY_URL}?category=${encodeURIComponent(category)}`;
+      if (page) url += `&page=${encodeURIComponent(page)}`;
+
       const response = await fetch(url);
 
       if (!response.ok) {
+        if (response.status === 429) throw new Error('Too many requests. Please wait a minute.');
         throw new Error(`Server error (${response.status})`);
       }
 
@@ -137,14 +161,24 @@
         throw new Error(data.message || 'Unknown API error');
       }
 
-      const articles = removeDuplicates(data.results || []);
-      renderArticles(articles);
+      nextPageToken = data.nextPage || null;
+      const articles = filterDuplicates(data.results || []);
+
+      renderArticles(articles, isLoadMore);
+
+      if (nextPageToken) {
+        loadMoreContainer.classList.remove('hidden');
+      } else {
+        loadMoreContainer.classList.add('hidden');
+      }
     } catch (error) {
       console.error('News fetch error:', error);
       showError('⚠️ ' + (error.message || 'Failed to load news. Please try again later.'));
     } finally {
-      setLoading(false);
       isFetching = false;
+      loadMoreBtn.disabled = false;
+      loadMoreBtn.innerHTML = `<span>Load More Articles</span> <i data-lucide="chevron-down" class="w-4 h-4"></i>`;
+      lucide.createIcons();
     }
   }
 
@@ -152,11 +186,19 @@
     const selected = categorySelect.value;
     if (selected === currentCategory) return;
     currentCategory = selected;
+    nextPageToken = null;
     fetchNews(currentCategory);
   }
 
   function handleRefresh() {
+    nextPageToken = null;
     fetchNews(currentCategory);
+  }
+
+  function handleLoadMore() {
+    if (nextPageToken) {
+      fetchNews(currentCategory, nextPageToken);
+    }
   }
 
   function init() {
@@ -166,6 +208,7 @@
 
     categorySelect.addEventListener('change', handleCategoryChange);
     refreshBtn.addEventListener('click', handleRefresh);
+    loadMoreBtn.addEventListener('click', handleLoadMore);
   }
 
   document.addEventListener('DOMContentLoaded', init);
