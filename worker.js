@@ -1,7 +1,5 @@
 const ALLOWED_ORIGINS = [
-  "https://zaylinkhant02.github.io",
-  "http://127.0.0.1:5500",
-  "http://localhost:3000"
+  "https://zaylinkhant02.github.io"
 ];
 
 export default {
