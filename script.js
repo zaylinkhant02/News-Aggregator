@@ -12,6 +12,9 @@
   const sentinelLoader = document.getElementById('sentinel-loader');
   const errorMessage = document.getElementById('error-message');
   const lastUpdatedEl = document.getElementById('last-updated');
+  const themeToggleBtn = document.getElementById('theme-toggle');
+  const darkIcon = document.getElementById('theme-toggle-dark-icon');
+  const lightIcon = document.getElementById('theme-toggle-light-icon');
 
   const categories = [
     { value: 'top', label: 'Top Stories' },
@@ -32,6 +35,34 @@
   let isFetching = false;
   let observer = null;
   const seenTitles = new Set();
+
+  function initTheme() {
+    const isDark = localStorage.getItem('theme') === 'dark' || 
+      (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    if (isDark) {
+      document.body.classList.add('dark');
+      darkIcon?.classList.add('hidden');
+      lightIcon?.classList.remove('hidden');
+    } else {
+      document.body.classList.remove('dark');
+      darkIcon?.classList.remove('hidden');
+      lightIcon?.classList.add('hidden');
+    }
+  }
+
+  function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+    if (isDark) {
+      darkIcon?.classList.add('hidden');
+      lightIcon?.classList.remove('hidden');
+    } else {
+      darkIcon?.classList.remove('hidden');
+      lightIcon?.classList.add('hidden');
+    }
+  }
 
   function populateCategories() {
     categorySelect.innerHTML = categories.map(cat => 
@@ -300,6 +331,11 @@
   }
 
   function init() {
+    initTheme();
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', toggleTheme);
+    }
+
     populateCategories();
     lucide.createIcons();
     setupIntersectionObserver();
