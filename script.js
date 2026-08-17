@@ -15,6 +15,7 @@
   const themeToggleBtn = document.getElementById('theme-toggle');
   const darkIcon = document.getElementById('theme-toggle-dark-icon');
   const lightIcon = document.getElementById('theme-toggle-light-icon');
+  const backToTopBtn = document.getElementById('back-to-top');
 
   const categories = [
     { value: 'top', label: 'Top Stories' },
@@ -330,18 +331,37 @@
     fetchNews(currentCategory, null, currentSearchQuery);
   }
 
+  function setupBackToTop() {
+    if (!backToTopBtn) return;
+  
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 300) {
+        backToTopBtn.classList.remove('opacity-0', 'pointer-events-none');
+        backToTopBtn.classList.add('opacity-100');
+      } else {
+        backToTopBtn.classList.add('opacity-0', 'pointer-events-none');
+        backToTopBtn.classList.remove('opacity-100');
+      }
+    });
+  
+    backToTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
   function init() {
     initTheme();
     if (themeToggleBtn) {
       themeToggleBtn.addEventListener('click', toggleTheme);
     }
-
+  
     populateCategories();
     lucide.createIcons();
     setupIntersectionObserver();
-
+    setupBackToTop();
+  
     fetchNews(currentCategory, null, currentSearchQuery);
-
+  
     categorySelect.addEventListener('change', handleCategoryChange);
     refreshBtn.addEventListener('click', () => fetchNews(currentCategory, null, currentSearchQuery));
     searchForm.addEventListener('submit', handleSearchSubmit);
